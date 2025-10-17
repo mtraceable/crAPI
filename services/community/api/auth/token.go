@@ -16,6 +16,7 @@ package auth
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,6 +26,7 @@ import (
 	"strings"
 
 	"crapi.proj/goservice/api/models"
+	"crapi.proj/goservice/api/utils"
 	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/jinzhu/gorm"
 )
@@ -33,7 +35,7 @@ type Token struct {
 	Token string `json:"token"`
 }
 
-//ExtractToken return token from Authorization Bearer
+// ExtractToken return token from Authorization Bearer
 func ExtractToken(r *http.Request) string {
 	keys := r.URL.Query()
 	token := keys.Get("token")
@@ -47,32 +49,41 @@ func ExtractToken(r *http.Request) string {
 	return ""
 }
 
-//ExtractTokenID Verify token either it's valid or not.
-//If token is valid we extract username from token Claims.
-//Then check that username in postgres database.
+// ExtractTokenID Verify token either it's valid or not.
+// If token is valid we extract username from token Claims.
+// Then check that username in postgres database.
 func ExtractTokenID(r *http.Request, db *gorm.DB) (uint32, error) {
+	http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	tokenVerifyURL := fmt.Sprintf("http://%s/identity/api/auth/verify", os.Getenv("IDENTITY_SERVICE"))
+	tls_enabled, is_tls := os.LookupEnv("TLS_ENABLED")
+	if is_tls && utils.IsTrue(tls_enabled) {
+		tokenVerifyURL = fmt.Sprintf("https://%s/identity/api/auth/verify", os.Getenv("IDENTITY_SERVICE"))
+	}
 	tokenString := ExtractToken(r)
 	tokenJSON, err := json.Marshal(Token{Token: tokenString})
 	if err != nil {
-		log.Printf(err.Error())
+		log.Println(err)
 		return 0, err
 	}
 
-	resp, err := http.Post(tokenVerifyURL, "application/json",
-		bytes.NewBuffer(tokenJSON))
+	resp, err := http.Post(tokenVerifyURL, "application/json", bytes.NewBuffer(tokenJSON))
 	if err != nil {
-		log.Printf(err.Error())
+		log.Println(err)
 		return 0, err
 	}
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Println("Error closing response body:", err)
+		}
+	}()
 
 	tokenValid := resp.StatusCode == 200
 	token, _, err := new(jwt.Parser).ParseUnverified(tokenString, jwt.MapClaims{})
-	claims, ok := token.Claims.(jwt.MapClaims)
 	if err != nil {
-		log.Printf(err.Error())
+		log.Println(err)
 		return 0, err
 	}
+	claims, ok := token.Claims.(jwt.MapClaims)
 
 	if ok && tokenValid {
 		name := claims["sub"]
@@ -90,7 +101,7 @@ func ExtractTokenID(r *http.Request, db *gorm.DB) (uint32, error) {
 	return 0, errors.New("Unauthorized")
 }
 
-//CheckTokenInDB call FindUserByEmail and check that email in postgres database
+// CheckTokenInDB call FindUserByEmail and check that email in postgres database
 func CheckTokenInDB(username string, db *gorm.DB) error {
 	email := fmt.Sprintf("%v", username)
 	//Calling user model for database query
@@ -106,7 +117,7 @@ func CheckTokenInDB(username string, db *gorm.DB) error {
 
 }
 
-//Pretty display the claims licely in the terminal
+// Pretty display the claims licely in the terminal
 func Pretty(data interface{}) {
 	b, err := json.MarshalIndent(data, "", " ")
 	if err != nil {
@@ -114,7 +125,7 @@ func Pretty(data interface{}) {
 		return
 	}
 
-	fmt.Println(string(b))
+	log.Println(string(b))
 }
 
 //

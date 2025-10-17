@@ -16,11 +16,32 @@ package com.crapi.constant;
 
 public class UserMessage {
 
+  public static final String LOGIN_SUCCESSFULL_MESSAGE = "Login successful";
+  public static final String OTP_REQUIRED_MESSAGE =
+      "User is locked. OTP has been sent to your email. Please provide that to unlock the account.";
+  public static final String API_KEY_GENERATED_MESSAGE =
+      "Api Key generated successfully. Use it in authorization header with ApiKey prefix.";
+  public static final String API_KEY_GENERATION_FAILED =
+      "Api Key generation failed! Only permitted for admin users.";
+  public static final String ACCOUNT_LOCK_MESSAGE = "User account has been locked.";
+  public static final String ACCOUNT_LOCKED_MESSAGE =
+      "User account is locked. Retry login with MFA to unlock.";
+  public static final String ACCOUNT_LOCK_FAILURE =
+      "Failed to lock the account. Please try again..";
+  public static final String ACCOUNT_UNLOCKED_MESSAGE = "User account is unlocked.";
   public static final String INVALID_CREDENTIALS = "Invalid Credentials";
   public static final String SIGN_UP_SUCCESS_MESSAGE =
       "User registered successfully! Please Login.";
   public static final String SIGN_UP_FAILED = "User registered failed! Please retry.";
   public static final String NUMBER_ALREADY_REGISTERED = "Number already registered! Number: ";
+  public static final String NUMBER_NOT_REGISTERED = "Given Number is not registered! Number:";
+  public static final String CHANGE_PHONE_MESSAGE =
+      "The otp has been sent to your email. If you have used example.com email, check your email using the MailHog web portal.";
+  public static final String NUMBER_CHANGE_SUCCESSFUL = "Phone number change is successful";
+  public static final String NEW_NUMBER_DOES_NOT_BELONG = "Fail, invalid new number";
+  public static final String OLD_NUMBER_DOES_NOT_BELONG =
+      "Fail, number parameter doesn’t belong to the user";
+  public static final String INVALID_CHANGE_REQUEST = "Fail, invalid change request";
   public static final String EMAIL_ALREADY_REGISTERED = "Email already registered! Email: ";
   public static final String GIVEN_URL_ALREADY_USED =
       "Given URL is already used! Please try to login..";
@@ -70,7 +91,7 @@ public class UserMessage {
   public static final String CONVERT_VIDEO_INTERNAL_ERROR = "Error occured while executing.";
   public static final String CONVERT_VIDEO_CLOSE_TO_WIN_THE_GAME = "You are very close.";
   public static final String CONVERT_VIDEO_BASH_COMMAND_TRIGGERED =
-      "Video conversion bash command triggered.";
+      "Video conversion command executed.";
   public static final String SORRY_DIDNT_GET_PROFILE =
       "Sorry, Didn't get any profile video name for the user.";
   public static final String THIS_IS_ADMIN_FUNCTION =

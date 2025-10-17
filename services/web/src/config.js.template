@@ -1,6 +1,8 @@
 export const crapienv = {
-    JAVA_MICRO_SERVICES: "identity/",
-    PYTHON_MICRO_SERVICES: "workshop/",
-    GO_MICRO_SERVICES: "community/",
+    IDENTITY_SERVICE: "identity/",
+    WORKSHOP_SERVICE: "workshop/",
+    CHATBOT_SERVICE: "chatbot/",
+    COMMUNITY_SERVICE: "community/",
+    CHATBOT_SERVICE: "chatbot/",
 };
 

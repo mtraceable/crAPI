@@ -1,5 +1,4 @@
-FROM golang:1.17-buster as builder
-
+FROM golang:1.21-bookworm AS builder
 WORKDIR /app
 
 COPY go.* ./
@@ -13,10 +12,11 @@ RUN go build -v -o server
 RUN wget https://github.com/minio/certgen/releases/latest/download/certgen-linux-amd64 -O /tmp/certgen \
     && chmod +x /tmp/certgen
 
-RUN /tmp/certgen -host "127.0.0.1,gateway-service,api.crapi.io,crapi.io"
+RUN /tmp/certgen -host "127.0.0.1,gateway-service,api.mypremiumdealership.com,mypremiumdealership.com"
 RUN ls -la
 
-FROM debian:buster-slim
+FROM debian:bookworm-slim
+SHELL ["/bin/bash", "-c"]
 WORKDIR /app
 
 RUN set -x && apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \

@@ -15,37 +15,42 @@
 package com.crapi.config;
 
 import com.crapi.entity.User;
+import com.crapi.repository.UserRepository;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.nimbusds.jose.*;
+import com.nimbusds.jose.crypto.MACVerifier;
 import com.nimbusds.jose.crypto.RSASSAVerifier;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jwt.JWTParser;
+import com.nimbusds.jwt.PlainJWT;
 import com.nimbusds.jwt.SignedJWT;
 import io.jsonwebtoken.*;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigDecimal;
 import java.net.URI;
 import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
 import java.text.ParseException;
 import java.util.*;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+@Slf4j
 @Component
 public class JwtProvider {
 
-  private static final Logger logger = LoggerFactory.getLogger(JwtProvider.class);
+  @Autowired private UserRepository userRepository;
 
   @Value("${app.jwtExpiration}")
-  private int jwtExpiration;
+  private String jwtExpiration;
 
   private KeyPair keyPair;
 
@@ -58,6 +63,7 @@ public class JwtProvider {
       Base64.Decoder decoder = Base64.getDecoder();
       InputStream jwksStream = new ByteArrayInputStream(decoder.decode(jwksJson));
       JWKSet jwkSet = JWKSet.load(jwksStream);
+      jwksStream.close();
       List<JWK> keys = jwkSet.getKeys();
       if (keys.size() != 1 || !Objects.equals(keys.get(0).getAlgorithm().getName(), "RS256")) {
         throw new RuntimeException("Invalid JWKS key passed!!!");
@@ -82,13 +88,33 @@ public class JwtProvider {
    * @return generated token with expire date
    */
   public String generateJwtToken(User user) {
-    return Jwts.builder()
-        .setSubject((user.getEmail()))
-        .claim("role", user.getRole().getName())
-        .setIssuedAt(new Date())
-        .setExpiration(new Date((new Date()).getTime() + jwtExpiration))
-        .signWith(SignatureAlgorithm.RS256, this.keyPair.getPrivate())
-        .compact();
+    int jwtExpirationInt;
+    if (jwtExpiration.contains("e+")) jwtExpirationInt = new BigDecimal(jwtExpiration).intValue();
+    else jwtExpirationInt = Integer.parseInt(jwtExpiration);
+    JwtBuilder builder =
+        Jwts.builder()
+            .subject(user.getEmail())
+            .issuedAt(new Date())
+            .expiration(new Date((new Date()).getTime() + jwtExpirationInt))
+            .claim("role", user.getRole().getName())
+            .signWith(this.keyPair.getPrivate());
+    String jwt = builder.compact();
+    return jwt;
+  }
+
+  /**
+   * @param user
+   * @return generated apikey token without expiry date
+   */
+  public String generateApiKey(User user) {
+    JwtBuilder builder =
+        Jwts.builder()
+            .subject(user.getEmail())
+            .issuedAt(new Date())
+            .claim("role", user.getRole().getName())
+            .signWith(this.keyPair.getPrivate());
+    String jwt = builder.compact();
+    return jwt;
   }
 
   /**
@@ -107,7 +133,8 @@ public class JwtProvider {
       if (jku != null) {
         URLConnection connection = jku.toURL().openConnection();
         JWKSet jwkSet = JWKSet.load(connection.getInputStream());
-        logger.info("JWKSet from URL : " + jwkSet.toString(false));
+        connection.getInputStream().close();
+        log.info("JWKSet from URL : " + jwkSet.toString(false));
         JWK key = jwkSet.getKeyByKeyId(header.getKeyID());
         if (key != null && Objects.equals(key.getAlgorithm().getName(), "RS256")) {
           return key.toRSAKey().toPublicJWK();
@@ -145,33 +172,37 @@ public class JwtProvider {
       SignedJWT signedJWT = SignedJWT.parse(authToken);
       JWSHeader header = signedJWT.getHeader();
       Algorithm alg = header.getAlgorithm();
-
+      boolean valid = false;
       // JWT Algorithm confusion vulnerability
-      logger.info("Algorithm: " + alg.getName());
+      log.debug("Algorithm: " + alg.getName());
+      JWSVerifier verifier;
       if (Objects.equals(alg.getName(), "HS256")) {
         String secret = getJwtSecret(header);
-        logger.info("JWT Secret: " + secret);
-        Jwts.parser()
-            .setSigningKey(secret.getBytes(StandardCharsets.UTF_8))
-            .parseClaimsJws(authToken);
-        return true;
+        log.debug("JWT Secret: " + secret);
+        verifier = new MACVerifier(secret.getBytes(StandardCharsets.UTF_8));
       } else {
         RSAKey verificationKey = getKeyFromJkuHeader(header);
-        JWSVerifier verifier;
         if (verificationKey == null) {
+          log.debug("Key from JWKS: " + this.publicRSAKey.toJSONString());
           verifier = new RSASSAVerifier(this.publicRSAKey);
         } else {
-          logger.info("Key from JKU: " + verificationKey.toJSONString());
+          log.debug("Key from JKU: " + verificationKey.toJSONString());
           verifier = new RSASSAVerifier(verificationKey);
         }
-
-        return signedJWT.verify(verifier);
+        valid = signedJWT.verify(verifier);
+        log.debug("JWT valid?: " + valid);
+        return valid;
       }
 
     } catch (ParseException e) {
-      logger.error("Could not parse JWT Token -> Message: %d", e);
+      try {
+        PlainJWT jwt = PlainJWT.parse(authToken);
+        return true;
+      } catch (ParseException parseException) {
+        log.error("Could not parse JWT Token -> Message: %d", parseException);
+      }
     } catch (JOSEException e) {
-      logger.error("RSA JWK Extraction failed -> Message: %d", e);
+      log.error("RSA JWK Extraction failed -> Message: %d", e);
     }
 
     return false;

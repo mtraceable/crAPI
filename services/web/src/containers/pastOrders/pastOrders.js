@@ -22,9 +22,11 @@ import { getOrdersAction, returnOrderAction } from "../../actions/shopActions";
 import PastOrders from "../../components/pastOrders/pastOrders";
 import responseTypes from "../../constants/responseTypes";
 import { FAILURE_MESSAGE } from "../../constants/messages";
-const PastOrdersContainer = (props) => {
-  const { history, accessToken, getOrders, returnOrder } = props;
+import { useNavigate } from "react-router-dom";
 
+const PastOrdersContainer = (props) => {
+  const { accessToken, getOrders, returnOrder } = props;
+  const navigate = useNavigate();
   useEffect(() => {
     const callback = (res, data) => {
       if (res !== responseTypes.SUCCESS) {
@@ -36,6 +38,18 @@ const PastOrdersContainer = (props) => {
     };
     getOrders({ callback, accessToken });
   }, [accessToken, getOrders]);
+
+  const handleOffsetChange = (offset) => {
+    const callback = (res, data) => {
+      if (res !== responseTypes.SUCCESS) {
+        Modal.error({
+          title: FAILURE_MESSAGE,
+          content: data,
+        });
+      }
+    };
+    getOrders({ callback, accessToken, offset });
+  };
 
   const handleReturnOrder = (orderId) => {
     const callback = (res, data) => {
@@ -50,7 +64,7 @@ const PastOrdersContainer = (props) => {
               size={200}
             />
           ),
-          onOk: () => history.push("/past-orders"),
+          onOk: () => navigate("/past-orders"),
         });
       } else {
         Modal.error({
@@ -61,8 +75,13 @@ const PastOrdersContainer = (props) => {
     };
     returnOrder({ callback, accessToken, orderId });
   };
-  
-  return <PastOrders history={history} returnOrder={handleReturnOrder} />;
+
+  return (
+    <PastOrders
+      returnOrder={handleReturnOrder}
+      handleOffsetChange={handleOffsetChange}
+    />
+  );
 };
 
 const mapStateToProps = ({ userReducer: { accessToken } }) => {
@@ -78,10 +97,12 @@ PastOrdersContainer.propTypes = {
   accessToken: PropTypes.string,
   getOrders: PropTypes.func,
   returnOrder: PropTypes.func,
-  history: PropTypes.object,
+  prevOffset: PropTypes.number,
+  nextOffset: PropTypes.number,
+  handleOffsetChange: PropTypes.func,
 };
 
 export default connect(
   mapStateToProps,
-  mapDispatchToProps
+  mapDispatchToProps,
 )(PastOrdersContainer);

@@ -13,10 +13,17 @@
 """
 contains all the test cases related to mechanic
 """
+from django.utils import timezone
 from unittest.mock import patch
-from utils.mock_methods import get_sample_mechanic_data, mock_jwt_auth_required
+from utils.mock_methods import (
+    get_sample_mechanic_data,
+    mock_jwt_auth_required,
+    get_sample_user_data,
+)
+from crapi.mechanic.models import Mechanic, ServiceRequest, User, ServiceComment
+from crapi.user.models import Vehicle, VehicleCompany, VehicleModel
 
-patch('utils.jwt.jwt_auth_required', mock_jwt_auth_required).start()
+patch("utils.jwt.jwt_auth_required", mock_jwt_auth_required).start()
 
 from django.test import TestCase, Client
 from utils import messages
@@ -46,15 +53,19 @@ class MechanicSignUpTestCase(TestCase):
         should get an error response saying email already registered
         :return: None
         """
-        res = self.client.post('/workshop/api/mechanic/signup',
-                               self.mechanic,
-                               content_type="application/json")
+        res = self.client.post(
+            "/workshop/api/mechanic/signup",
+            self.mechanic,
+            content_type="application/json",
+        )
         self.assertEqual(res.status_code, 200)
-        res = self.client.post('/workshop/api/mechanic/signup',
-                               self.mechanic,
-                               content_type="application/json")
+        res = self.client.post(
+            "/workshop/api/mechanic/signup",
+            self.mechanic,
+            content_type="application/json",
+        )
         self.assertNotEqual(res.status_code, 200)
-        self.assertEqual(res.json()['message'], messages.EMAIL_ALREADY_EXISTS)
+        self.assertEqual(res.json()["message"], messages.EMAIL_ALREADY_EXISTS)
 
     def test_duplicate_mechanic_code(self):
         """
@@ -64,18 +75,21 @@ class MechanicSignUpTestCase(TestCase):
         should get an error response saying mechanic_code already exists
         :return: None
         """
-        res = self.client.post('/workshop/api/mechanic/signup',
-                               self.mechanic,
-                               content_type="application/json")
+        res = self.client.post(
+            "/workshop/api/mechanic/signup",
+            self.mechanic,
+            content_type="application/json",
+        )
         self.assertEqual(res.status_code, 200)
 
-        self.mechanic['email'] = 'abcd@example.com'
-        res = self.client.post('/workshop/api/mechanic/signup',
-                               self.mechanic,
-                               content_type="application/json")
+        self.mechanic["email"] = "abcd@example.com"
+        res = self.client.post(
+            "/workshop/api/mechanic/signup",
+            self.mechanic,
+            content_type="application/json",
+        )
         self.assertNotEqual(res.status_code, 200)
-        self.assertEqual(res.json()['message'],
-                         messages.MEC_CODE_ALREADY_EXISTS)
+        self.assertEqual(res.json()["message"], messages.MEC_CODE_ALREADY_EXISTS)
 
     def test_no_duplicate(self):
         """
@@ -85,20 +99,22 @@ class MechanicSignUpTestCase(TestCase):
         should get a valid response(200) on second signup also
         :return:
         """
-        res = self.client.post('/workshop/api/mechanic/signup',
-                               self.mechanic,
-                               content_type="application/json")
+        res = self.client.post(
+            "/workshop/api/mechanic/signup",
+            self.mechanic,
+            content_type="application/json",
+        )
         self.assertEqual(res.status_code, 200)
 
-        self.mechanic['email'] = 'abcd@example.com'
-        self.mechanic['mechanic_code'] = 'TRAC_MEC_4'
-        res = self.client.post('/workshop/api/mechanic/signup',
-                               self.mechanic,
-                               content_type="application/json")
+        self.mechanic["email"] = "abcd@example.com"
+        self.mechanic["mechanic_code"] = "TRAC_MEC_4"
+        res = self.client.post(
+            "/workshop/api/mechanic/signup",
+            self.mechanic,
+            content_type="application/json",
+        )
         self.assertEqual(res.status_code, 200)
-        self.assertIn(
-            messages.MEC_CREATED.split(':')[0],
-            res.json()['message'])
+        self.assertIn(messages.MEC_CREATED.split(":")[0], res.json()["message"])
 
     def test_jwt_token(self):
         """
@@ -110,18 +126,18 @@ class MechanicSignUpTestCase(TestCase):
         should get a valid response(200) of the api
         :return: None
         """
-        self.client.post('/workshop/api/mechanic/signup',
-                         self.mechanic,
-                         content_type="application/json")
+        self.client.post(
+            "/workshop/api/mechanic/signup",
+            self.mechanic,
+            content_type="application/json",
+        )
 
-        res = self.client.get('/workshop/api/mechanic/')
+        res = self.client.get("/workshop/api/mechanic/")
         self.assertNotEqual(res.status_code, 200)
-        self.assertEqual(res.json()['message'], messages.JWT_REQUIRED)
+        self.assertEqual(res.json()["message"], messages.JWT_REQUIRED)
 
-        auth_headers = {
-            'HTTP_AUTHORIZATION': 'Bearer ' + self.mechanic['email']
-        }
-        res = self.client.get('/workshop/api/mechanic/', **auth_headers)
+        auth_headers = {"HTTP_AUTHORIZATION": "Bearer " + self.mechanic["email"]}
+        res = self.client.get("/workshop/api/mechanic/", **auth_headers)
         self.assertEqual(res.status_code, 200)
 
     def test_invalid_jwt_token(self):
@@ -132,13 +148,13 @@ class MechanicSignUpTestCase(TestCase):
         should get an error response saying token invalid
         :return: None
         """
-        res = self.client.get('/workshop/api/mechanic/')
+        res = self.client.get("/workshop/api/mechanic/")
         self.assertNotEqual(res.status_code, 200)
 
-        auth_headers = {'HTTP_AUTHORIZATION': 'Bearer invalid.token'}
-        res = self.client.get('/workshop/api/mechanic/', **auth_headers)
+        auth_headers = {"HTTP_AUTHORIZATION": "Bearer invalid.token"}
+        res = self.client.get("/workshop/api/mechanic/", **auth_headers)
         self.assertNotEqual(res.status_code, 200)
-        self.assertEqual(res.json()['message'], messages.INVALID_TOKEN)
+        self.assertEqual(res.json()["message"], messages.INVALID_TOKEN)
 
     def test_bad_request(self):
         """
@@ -146,8 +162,155 @@ class MechanicSignUpTestCase(TestCase):
         should get a bad request response
         :return: None
         """
-        del [self.mechanic['password']]
-        res = self.client.post('/workshop/api/mechanic/signup',
-                               self.mechanic,
-                               content_type="application/json")
-        self.assertNotEqual(res.status_code, 200)
+        del [self.mechanic["password"]]
+        res = self.client.post(
+            "/workshop/api/mechanic/signup",
+            self.mechanic,
+            content_type="application/json",
+        )
+        self.assertEqual(res.status_code, 400)
+
+
+class MechanicServiceWorkFlowTestCase(TestCase):
+    """
+    contains all the test cases related to Mechanic Service WorkFlow
+    """
+
+    def setUp(self):
+        """
+        stores a sample request body for mechanic
+        creates a dummy mechanic, a dummy user, a dummy vehicle and corresponding auth tokens
+        stores a sample request body for contact mechanic
+        creates a dummy service request
+        :return: None
+        """
+        self.client = Client()
+        mechanic_data = get_sample_mechanic_data()
+        self.mechanic = Mechanic.objects.create(
+            id=1,
+            mechanic_code=mechanic_data["mechanic_code"],
+            user=User.objects.create(
+                id=1,
+                email=mechanic_data["email"],
+                number=mechanic_data["number"],
+                password=mechanic_data["password"],
+                role=User.ROLE_CHOICES.MECH,
+                created_on=timezone.now(),
+            ),
+        )
+
+        self.client.post(
+            "/workshop/api/mechanic/signup",
+            self.mechanic,
+            content_type="application/json",
+        )
+
+        user_data = get_sample_user_data()
+        self.user = User.objects.create(
+            id=2,
+            email=user_data["email"],
+            number=user_data["number"],
+            password=user_data["password"],
+            role=User.ROLE_CHOICES.USER,
+            created_on=timezone.now(),
+        )
+        self.user_auth_headers = {"HTTP_AUTHORIZATION": "Bearer " + user_data["email"]}
+
+        self.mechanic_auth_headers = {
+            "HTTP_AUTHORIZATION": "Bearer " + self.mechanic.user.email
+        }
+
+        self.vehicle_company = VehicleCompany.objects.create(name="RandomCompany")
+
+        self.vehicle_model = VehicleModel.objects.create(
+            fuel_type="1",
+            model="NewModel",
+            vehicle_img="Image",
+            vehiclecompany=self.vehicle_company,
+        )
+
+        self.vehicle = Vehicle.objects.create(
+            pincode="1234",
+            vin="9NFXO86WBWA082766",
+            year="2020",
+            status="ACTIVE",
+            owner=self.user,
+            vehicle_model=self.vehicle_model,
+        )
+        self.contact_mechanic_request_body = {
+            "mechanic_api": "https://www.google.com",
+            "repeat_request_if_failed": True,
+            "number_of_repeats": 5,
+            "mechanic_code": self.mechanic.mechanic_code,
+            "vin": self.vehicle.vin,
+            "problem_details": "My Car is not working",
+        }
+        self.service_request = ServiceRequest.objects.create(
+            vehicle=self.vehicle,
+            mechanic=self.mechanic,
+            problem_details="My Car is not working",
+            status="PENDING",
+            created_on=timezone.now(),
+            updated_on=timezone.now(),
+        )
+
+    def test_create_comment(self):
+        """
+        creates a dummy service request
+        creates a dummy comment for the service request
+        should get a valid response on creating comment
+        :return: None
+        """
+        res = self.client.post(
+            "/workshop/api/mechanic/service_request/%s/comment"
+            % self.service_request.id,
+            {"comment": "This is a test comment"},
+            content_type="application/json",
+            **self.mechanic_auth_headers
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()["comment"], "This is a test comment")
+
+    def test_update_service_request(self):
+        """
+        updates the status of the service request
+        should get a valid response on updating the service request
+        :return: None
+        """
+        res = self.client.put(
+            "/workshop/api/mechanic/service_request/%s" % self.service_request.id,
+            {"status": "inprogress"},
+            content_type="application/json",
+            **self.mechanic_auth_headers
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()["status"], "inprogress")
+
+    def test_get_multiple_comments(self):
+        """
+        creates multiple comments for a service request
+        should get a valid response on getting multiple comments
+        :return: None
+        """
+        comments_len = ServiceComment.objects.filter(
+            service_request_id=self.service_request.id
+        ).count()
+        res = self.client.post(
+            "/workshop/api/mechanic/service_request/%s/comment"
+            % self.service_request.id,
+            {"comment": "This is another test comment"},
+            content_type="application/json",
+            **self.mechanic_auth_headers
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()["comment"], "This is another test comment")
+
+        comments = self.client.get(
+            "/workshop/api/mechanic/service_request/%s/comment"
+            % self.service_request.id,
+            content_type="application/json",
+            **self.mechanic_auth_headers
+        )
+        self.assertEqual(comments.status_code, 200)
+        print(comments.json())
+        self.assertEqual(len(comments.json()), comments_len + 1)

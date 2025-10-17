@@ -12,9 +12,10 @@
 
 
 # Java Maven Build
-FROM gradle:7.3.3-jdk11 AS gradlebuild
+FROM gradle:8.1-jdk17-focal AS gradlebuild
 WORKDIR /app
 COPY *.gradle.kts ./
+COPY gradle.properties ./
 # Only download dependencies
 # Eat the expected build failure since no source code has been copied yet
 RUN gradle clean build --no-daemon > /dev/null 2>&1 || true
@@ -23,18 +24,24 @@ RUN gradle build
 RUN gradle bootJar
 
 # Main Image
-FROM openjdk:11.0.15-jre-slim-buster
-
-#Java
-RUN apt-get -y update && apt-get -y install curl && apt-get -y clean
+FROM eclipse-temurin:17-noble
+# #Java
+RUN apt -y update && apt -y install curl && apt -y clean
+# RUN apt -y update && apt -y install wget curl unzip && apt -y clean
+# RUN wget https://www.yourkit.com/download/docker/YourKit-JavaProfiler-2023.9-docker.zip -P /tmp/ && \
+#   unzip /tmp/YourKit-JavaProfiler-2023.9-docker.zip -d /usr/local && \
+#   rm /tmp/YourKit-JavaProfiler-2023.9-docker.zip
 RUN mkdir /app
+WORKDIR /app
 COPY --from=gradlebuild /app/build/libs/identity-service-1.0-SNAPSHOT.jar /app/identity-service-1.0-SNAPSHOT.jar
 
-ARG SERVER_PORT 
+ARG SERVER_PORT
 EXPOSE ${SERVER_PORT}
+EXPOSE 10001 8080 8989
 
-ENV JAVA_TOOL_OPTIONS "-Xmx128m"
+ENV JAVA_TOOL_OPTIONS="-Xmx128m"
 
-COPY jwks.json default_jwks.json
+COPY jwks.json /app/default_jwks.json
 COPY entrypoint.sh /entrypoint.sh
+COPY health.sh /app/health.sh
 CMD [ "/entrypoint.sh"]

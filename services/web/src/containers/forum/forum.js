@@ -23,7 +23,7 @@ import responseTypes from "../../constants/responseTypes";
 import { FAILURE_MESSAGE } from "../../constants/messages";
 
 const ForumContainer = (props) => {
-  const { history, accessToken, getPosts } = props;
+  const { accessToken, getPosts } = props;
 
   useEffect(() => {
     const callback = (res, data) => {
@@ -34,10 +34,22 @@ const ForumContainer = (props) => {
         });
       }
     };
-    getPosts({ callback, accessToken });
+    getPosts({ accessToken, callback });
   }, [accessToken, getPosts]);
 
-  return <Forum history={history} />;
+  const onOffsetChange = (offset) => {
+    const callback = (res, data) => {
+      if (res !== responseTypes.SUCCESS) {
+        Modal.error({
+          title: FAILURE_MESSAGE,
+          content: data,
+        });
+      }
+    };
+    getPosts({ accessToken, offset, callback });
+  };
+
+  return <Forum handleOffsetChange={onOffsetChange} />;
 };
 
 const mapStateToProps = ({ userReducer: { accessToken } }) => {
@@ -51,7 +63,9 @@ const mapDispatchToProps = {
 ForumContainer.propTypes = {
   accessToken: PropTypes.string,
   getPosts: PropTypes.func,
-  history: PropTypes.object,
+  prevOffset: PropTypes.string,
+  nextOffset: PropTypes.string,
+  handleOffsetChange: PropTypes.func,
 };
 
 export default connect(mapStateToProps, mapDispatchToProps)(ForumContainer);
